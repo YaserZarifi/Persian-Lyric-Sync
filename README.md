@@ -40,6 +40,15 @@ uv run python -m lyricvid frame project.json --t 42 -o frame.png
 
 Tests: `uv run --with pytest pytest -q tests`
 
+## Windows app
+
+```bash
+uv run pyinstaller PersianLyricSync.spec --noconfirm   # -> dist/PersianLyricSync/PersianLyricSync.exe
+powershell -File tools/make_shortcut.ps1               # desktop shortcut
+```
+
+ffmpeg is not bundled; it must be on PATH. Logs: `%APPDATA%\PersianLyricSyncpp.log`.
+
 Auto-timing sends the song's title, artist and duration to lrclib.net (use `--offline`
 on the CLI to skip it).
 

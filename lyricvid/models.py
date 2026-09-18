@@ -4,10 +4,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+# Bundled files: the repo root, or PyInstaller's unpack dir in the packaged app.
+ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 ASSETS = ROOT / "assets"
 FONTS_DIR = ASSETS / "fonts"
 PRESETS_DIR = ASSETS / "presets"  # built-in, read-only

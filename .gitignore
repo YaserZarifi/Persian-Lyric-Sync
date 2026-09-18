@@ -8,3 +8,7 @@ bg/
 output/
 *.mp4
 *.mp3
+
+# build output
+build/
+dist/
