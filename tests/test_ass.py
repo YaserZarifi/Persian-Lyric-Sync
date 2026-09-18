@@ -17,9 +17,9 @@ def test_ass_color_is_bgr_with_alpha():
 def test_entrance_animations():
     from lyricvid.ass import entrance_tags
 
-    assert "\t(0,200,0.6,\fscx100\fscy100)" in entrance_tags(StylePreset(animation="pop"), 1920, 1080)
+    assert r"\t(0,200,0.6,\fscx100\fscy100)" in entrance_tags(StylePreset(animation="pop"), 1920, 1080)
     slide = entrance_tags(StylePreset(animation="slide_up", alignment=2, margin_v=60), 1920, 1080)
-    assert "\move(960,1060,960,1020,0,200)" in slide
+    assert r"\move(960,1060,960,1020,0,200)" in slide
 
 
 def test_watermark_text_sits_below_logo():
