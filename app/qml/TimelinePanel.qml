@@ -55,6 +55,12 @@ Pane {
                 onClicked: root.backend.guessRestFromPlayhead()
             }
             ToolButton {
+                text: qsTr("Close gaps")
+                ToolTip.visible: hovered
+                ToolTip.text: qsTr("Keep each line on screen until the next one starts (breaks of 8 s or more stay empty)")
+                onClicked: root.backend.lines.closeGaps()
+            }
+            ToolButton {
                 text: qsTr("Undo")
                 enabled: root.backend.lines.canUndo
                 onClicked: root.backend.lines.undo()

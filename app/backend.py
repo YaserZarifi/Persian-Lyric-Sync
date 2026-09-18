@@ -23,7 +23,7 @@ from lyricvid.models import (
 from lyricvid import autotime
 from lyricvid.lrc import fetch_lines
 from lyricvid.sync import auto_time, guess_rest
-from lyricvid.timing import apply_drag
+from lyricvid.timing import apply_drag, close_gaps
 from lyricvid.waveform import compute_peaks
 
 
@@ -123,6 +123,19 @@ class LinesModel(QAbstractListModel):
         self.beginDrag(row)
         self.dragMove(row, mode, dt)
         self.endDrag()
+
+    @Slot(result=int)
+    def closeGaps(self) -> int:
+        """Extend lines to the next line's start unless there is a real break."""
+        spans = close_gaps([(l.start, l.end) for l in self._lines])
+        changed = [i for i, (l, sp) in enumerate(zip(self._lines, spans)) if l.end != sp[1]]
+        if changed:
+            self._push_undo()
+            for i in changed:
+                self._lines[i].end = spans[i][1]
+            self.dataChanged.emit(self.index(changed[0]), self.index(changed[-1]))
+            self.edited.emit()
+        return len(changed)
 
     @Slot()
     def endDrag(self) -> None:

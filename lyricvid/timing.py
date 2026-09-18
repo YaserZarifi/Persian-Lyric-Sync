@@ -59,3 +59,13 @@ def apply_drag(snap: list[Span], row: int, mode: str, dt: float, duration: float
     else:
         raise ValueError(mode)
     return [(round(a, 3), round(b, 3)) for a, b in spans]
+
+
+def close_gaps(spans: list[Span], max_gap: float = 8.0) -> list[Span]:
+    """Keep each line up until the next one, except across breaks of max_gap or more."""
+    out = list(spans)
+    for i in range(len(out) - 1):
+        (s, e), nxt_start = out[i], out[i + 1][0]
+        if 0 < nxt_start - e < max_gap:
+            out[i] = (s, nxt_start)
+    return out

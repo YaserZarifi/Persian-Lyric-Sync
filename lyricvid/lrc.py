@@ -151,6 +151,26 @@ def consensus(
 
 # ---- transfer timing onto the user's lines ----------------------------------------
 
+BREAK_MIN = 8.0  # an empty stamp only hides the lyric before a gap at least this long
+BREAK_TAIL = 1.0  # ...and the line lingers this long past that stamp
+
+
+def display_end(lrc: list[LrcLine], i: int, duration: float) -> float:
+    """When LRC line i should leave the screen.
+
+    Many uploads add an empty stamp right after every line (where the words stop).
+    A lyric video keeps the line up until the next one, so an empty stamp only counts
+    when it opens a real instrumental break.
+    """
+    j = i + 1
+    while j < len(lrc) and not lrc[j].text:
+        j += 1
+    next_text = lrc[j].time if j < len(lrc) else duration
+    blank = lrc[i + 1].time if i + 1 < len(lrc) and not lrc[i + 1].text else None
+    if blank is not None and next_text - blank >= BREAK_MIN:
+        return min(blank + BREAK_TAIL, next_text)
+    return next_text
+
 def align_to_lines(
     user_texts: list[str], lrc: list[LrcLine], duration: float
 ) -> list[tuple[float, float] | None]:
@@ -163,10 +183,11 @@ def align_to_lines(
         nxt = lrc[i + 1].time if i + 1 < len(lrc) else duration
         chars = letters(line.text)
         span = min(nxt - line.time, 0.33 * len(chars) + 0.5)
+        end = display_end(lrc, i, duration)
         for k, ch in enumerate(chars):
             lrc_chars.append(ch)
             lrc_time.append(line.time + span * k / max(1, len(chars)))
-            lrc_slot_end.append(nxt)
+            lrc_slot_end.append(end)
 
     user_chars: list[str] = []
     owner: list[int] = []
