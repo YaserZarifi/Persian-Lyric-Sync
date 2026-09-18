@@ -10,18 +10,26 @@ Rectangle {
     required property QtObject lines
     required property real boundaryTop
     required property bool current
+    required property bool selected
 
     readonly property bool dragging: moveDrag.active || rippleDrag.active
                                      || startDrag.active || endDrag.active
     readonly property real edgeWidth: Math.min(10, width / 3)
 
     signal seek(real t)
+    signal grabbed()
+
+    onDraggingChanged: {
+        if (dragging)
+            grabbed()
+    }
 
     x: model.start * pxPerSec
     width: Math.max(2, (model.end - model.start) * pxPerSec)
     radius: 4
     color: current ? "#b8336a" : (dragging ? "#4d6490" : "#34405a")
-    border.color: dragging ? "#fff" : "#5a6b8f"
+    border.color: dragging || selected ? "#fff" : "#5a6b8f"
+    border.width: selected ? 2 : 1
 
     // Boundary guides up through the waveform.
     Rectangle {

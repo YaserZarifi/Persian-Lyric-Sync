@@ -21,6 +21,7 @@ from lyricvid.models import (
     FONTS_DIR, USER_PRESETS_DIR, Line, Project, list_presets, resolve_font, slugify,
 )
 from lyricvid import autotime
+from lyricvid.lrc import fetch_lines
 from lyricvid.sync import auto_time, guess_rest
 from lyricvid.timing import apply_drag
 from lyricvid.waveform import compute_peaks
@@ -113,6 +114,15 @@ class LinesModel(QAbstractListModel):
         if first is not None:
             self.dataChanged.emit(self.index(first), self.index(last))
             self.edited.emit()
+
+    @Slot(int, str, float)
+    def nudge(self, row: int, mode: str, dt: float) -> None:
+        """Keyboard version of a timeline drag (see lyricvid.timing), with undo."""
+        if not 0 <= row < len(self._lines):
+            return
+        self.beginDrag(row)
+        self.dragMove(row, mode, dt)
+        self.endDrag()
 
     @Slot()
     def endDrag(self) -> None:
@@ -231,6 +241,8 @@ class Backend(QObject):
         self._peaksDone.connect(self._on_peaks_done)
         self._features: dict[str, autotime.VocalFeatures] = {}
         self._auto_timing = False
+        self._replace_lines_next = False
+        self._selected = -1
         self._autoTimeDone.connect(self._on_auto_time_done)
         self._previewDone.connect(self._on_preview_done)
         self._exportProgress.connect(self._on_export_progress)
@@ -678,6 +690,50 @@ class Backend(QObject):
 
         self._run_timing_job("Auto-timing: looking up synced lyrics…", job)
 
+    selectedLineChanged = Signal()
+
+    def _get_selected(self) -> int:
+        return self._selected
+
+    def _set_selected(self, row: int) -> None:
+        row = row if 0 <= row < self._model.rowCount() else -1
+        if row != self._selected:
+            self._selected = row
+            self.selectedLineChanged.emit()
+
+    selectedLine = Property(int, _get_selected, _set_selected, notify=selectedLineChanged)
+
+    @Slot(float)
+    def nudgeSelected(self, dt: float) -> None:
+        # The start is what sync fixes: the previous line's end follows it.
+        self._model.nudge(self._selected, "start", dt)
+
+    @Slot(float)
+    def rippleSelected(self, dt: float) -> None:
+        self._model.nudge(self._selected, "ripple", dt)
+
+    def _get_can_fetch(self) -> bool:
+        return bool(self._project.audio_path) and self._duration > 0 and not self._auto_timing
+
+    canFetchLyrics = Property(bool, _get_can_fetch, notify=autoTimingChanged)
+
+    @Slot()
+    def fetchLyricsOnline(self) -> None:
+        """Replace the lyrics with LRCLIB's text and timing for this song."""
+        if not self._get_can_fetch():
+            return
+        path, duration = self._project.audio_path, self._duration
+
+        def job():
+            found = fetch_lines(path, duration)
+            if not found:
+                raise LookupError("this song was not found on LRCLIB with synced lyrics")
+            lines, source = found
+            return [Line(t, s, e) for t, s, e in lines], f"LRCLIB, lyrics included ({source})", True
+
+        self._replace_lines_next = True
+        self._run_timing_job("Looking up lyrics on LRCLIB…", job)
+
     @Slot()
     def guessRestFromPlayhead(self) -> None:
         """Keep lines before the playhead, re-guess the rest from the audio."""
@@ -698,14 +754,17 @@ class Backend(QObject):
         self._auto_timing = False
         self.autoTimingChanged.emit()
         if lines is None:
+            self._replace_lines_next = False
             self._set_status("Auto-timing failed")
             self.errorOccurred.emit(f"Auto-timing failed: {source}")
             return
-        if [l.text for l in lines] != [l.text for l in self._model.lines()]:
+        replacing, self._replace_lines_next = self._replace_lines_next, False
+        if not replacing and [l.text for l in lines] != [l.text for l in self._model.lines()]:
             self._set_status("Lyrics changed while auto-timing; nothing applied")
             return
         self._model._push_undo()
         self._model.reset(lines, keep_undo=True)
+        self._set_selected(-1)
         self._set_status(("Timing from " if exact else "Timing: ") + source)
         self._changed()
 

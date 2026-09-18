@@ -29,7 +29,7 @@ Pane {
             }
             Label {
                 Layout.fillWidth: true
-                text: qsTr("Drag a line to move it · drag its edges to resize · Shift+drag also moves every later line · Space play/pause · Ctrl+wheel zoom")
+                text: qsTr("Drag a line to move it · drag edges to resize · Shift+drag moves every later line · ←/→ move selected line's start (Alt: fine, Shift: with all later lines) · Space play/pause · Ctrl+wheel zoom")
                 opacity: 0.55
                 font.pixelSize: 12
                 elide: Text.ElideRight

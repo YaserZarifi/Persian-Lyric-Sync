@@ -15,7 +15,8 @@ def apply_drag(snap: list[Span], row: int, mode: str, dt: float, duration: float
     """Return new spans after dragging `row` by `dt` seconds, relative to `snap`.
 
     mode: "move"   shift the line, bounded by its neighbours
-          "ripple" shift the line and every line after it
+          "ripple" shift the line and every line after it (a touching previous
+                   line's end follows)
           "start"  move the start edge (drags a touching previous line's end along)
           "end"    move the end edge (drags a touching next line's start along)
     """
@@ -31,12 +32,16 @@ def apply_drag(snap: list[Span], row: int, mode: str, dt: float, duration: float
         d = _clamp(dt, lo, max(lo, hi))
         spans[row] = (s + d, e + d)
     elif mode == "ripple":
-        lo = (prev[1] if prev else 0.0) - s
+        # A touching previous line stretches/shrinks with it instead of blocking.
+        linked = prev is not None and abs(prev[1] - s) < LINK_EPS
+        lo = ((prev[0] + MIN_LEN) if linked else (prev[1] if prev else 0.0)) - s
         hi = limit - snap[-1][1]
         d = _clamp(dt, lo, max(lo, hi))
         for i in range(row, len(snap)):
             a, b = snap[i]
             spans[i] = (a + d, b + d)
+        if linked:
+            spans[row - 1] = (prev[0], s + d)
     elif mode == "start":
         linked = prev is not None and abs(prev[1] - s) < LINK_EPS
         lo = (prev[0] + MIN_LEN) if linked else (prev[1] if prev else 0.0)

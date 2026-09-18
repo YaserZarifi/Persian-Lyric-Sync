@@ -14,13 +14,13 @@ ColumnLayout {
         Layout.fillHeight: true
         clip: true
         model: root.backend.lines
-        currentIndex: -1
+        currentIndex: root.backend.selectedLine
         ScrollBar.vertical: ScrollBar {}
 
         delegate: LineDelegate {
             width: ListView.view.width
             onActivated: row => {
-                list.currentIndex = row
+                root.backend.selectedLine = row
                 root.backend.requestPreview(root.backend.lines.midpoint(row))
             }
         }

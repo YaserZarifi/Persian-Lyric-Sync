@@ -12,7 +12,11 @@ def test_move_clamped_by_neighbours():
 
 def test_ripple_moves_all_following():
     out = apply_drag(SNAP, 1, "ripple", 2.5, 60)
-    assert out[0] == SNAP[0] and out[1] == (7.5, 10.5) and out[2] == (11.5, 14.5)
+    assert out[0] == (2.0, 7.5)  # touching previous line follows
+    assert out[1] == (7.5, 10.5) and out[2] == (11.5, 14.5)
+    out = apply_drag(SNAP, 1, "ripple", -1.0, 60)  # earlier: previous line shrinks
+    assert out[0] == (2.0, 4.0) and out[1] == (4.0, 7.0)
+    assert apply_drag(SNAP, 2, "ripple", -5, 60)[2] == (8.0, 11.0)  # gap: stops at prev end
     assert apply_drag(SNAP, 2, "ripple", 100, 20)[2] == (17.0, 20.0)  # clamped at song end
 
 

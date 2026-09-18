@@ -50,6 +50,31 @@ ApplicationWindow {
     }
 
     Shortcut {
+        sequence: "Left"
+        onActivated: window.backend.nudgeSelected(-0.1)
+    }
+    Shortcut {
+        sequence: "Right"
+        onActivated: window.backend.nudgeSelected(0.1)
+    }
+    Shortcut {
+        sequence: "Alt+Left"
+        onActivated: window.backend.nudgeSelected(-0.02)
+    }
+    Shortcut {
+        sequence: "Alt+Right"
+        onActivated: window.backend.nudgeSelected(0.02)
+    }
+    Shortcut {
+        sequence: "Shift+Left"
+        onActivated: window.backend.rippleSelected(-0.1)
+    }
+    Shortcut {
+        sequence: "Shift+Right"
+        onActivated: window.backend.rippleSelected(0.1)
+    }
+
+    Shortcut {
         sequences: [StandardKey.Undo]
         onActivated: window.backend.lines.undo()
     }

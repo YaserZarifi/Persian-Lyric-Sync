@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs
 import QtQuick.Layouts
 
 GroupBox {
@@ -28,7 +27,7 @@ GroupBox {
             Button {
                 text: qsTr("Choose…")
                 flat: true
-                onClicked: logoDialog.open()
+                onClicked: logoDialog.openRemembered()
             }
             Button {
                 text: qsTr("Clear")
@@ -74,8 +73,9 @@ GroupBox {
         }
     }
 
-    FileDialog {
+    RememberingFileDialog {
         id: logoDialog
+        memoryKey: "logo"
         title: qsTr("Choose a logo")
         nameFilters: [qsTr("Images (*.png *.webp *.jpg *.jpeg)")]
         onAccepted: root.backend.setWatermarkImage(selectedFile)

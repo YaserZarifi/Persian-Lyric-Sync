@@ -10,7 +10,13 @@ Windows desktop app that turns an MP3, Persian lyrics and a background image int
   aligned letter by letter onto your own lines (median of all matching versions);
   otherwise a rough guess from the audio.
 - **Draggable timeline**: waveform, drag lines to move, edges to resize, Shift+drag to
-  shift everything after, playback with a live lyric overlay, undo.
+  shift everything after, arrow keys to nudge the selected line, playback with a live
+  preview, undo. No lyrics file? Fetch the text and timing from LRCLIB.
+- **Lyric-video look**: Ken Burns pan/zoom, background darken/blur, entrance animations
+  (fade, pop, slide up), any TTF/OTF font, logo and channel-name watermark, all saved as
+  reusable named presets.
+- **Fast export**: NVIDIA NVENC when available (CPU x264 otherwise), 1080p/1440p/4K,
+  30/60 fps. A 3:21 song exports in about 30 s (about 60 s with Ken Burns) on a laptop.
 
 ## Requirements
 

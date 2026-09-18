@@ -197,3 +197,20 @@ def align_to_lines(
         if spans[i] and spans[i + 1] and spans[i][1] > spans[i + 1][0]:
             spans[i] = (spans[i][0], spans[i + 1][0])
     return spans
+
+
+def fetch_lines(audio_path: str | Path, duration: float) -> tuple[list[tuple[str, float, float]], str] | None:
+    """Lyrics text *and* timing from LRCLIB, for when the user has no lyrics file.
+
+    The best-matching version supplies the lines; every version votes on the timing.
+    """
+    artist, title = song_identity(audio_path)
+    matches = good_matches(search(artist, title), duration, [])
+    if not matches:
+        return None
+    versions = [parse_lrc(m["syncedLyrics"]) for m in matches]
+    texts = [l.text for l in versions[0] if l.text]
+    spans = consensus(texts, versions, duration)
+    lines = [(t, s[0], s[1]) for t, s in zip(texts, spans) if s is not None]
+    count = f", median of {len(versions)} versions" if len(versions) > 1 else ""
+    return lines, f"{matches[0]['artistName']} – {matches[0]['trackName']}{count}"

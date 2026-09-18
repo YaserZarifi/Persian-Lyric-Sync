@@ -26,7 +26,7 @@ Item {
 
     function save() {
         if (!backend.saveProject())
-            saveDialog.open()
+            saveDialog.openRemembered()
     }
 
     Action {
@@ -40,7 +40,7 @@ Item {
         id: openAction
         text: qsTr("Open…")
         shortcut: StandardKey.Open
-        onTriggered: root.guard(() => openDialog.open())
+        onTriggered: root.guard(() => openDialog.openRemembered())
     }
 
     Action {
@@ -54,7 +54,7 @@ Item {
         id: saveAsAction
         text: qsTr("Save As…")
         shortcut: StandardKey.SaveAs
-        onTriggered: saveDialog.open()
+        onTriggered: saveDialog.openRemembered()
     }
 
     Action {
@@ -68,18 +68,20 @@ Item {
     ExportDialog {
         id: exportSettingsDialog
         backend: root.backend
-        onChooseFile: exportDialog.open()
+        onChooseFile: exportDialog.openRemembered()
     }
 
-    FileDialog {
+    RememberingFileDialog {
         id: openDialog
+        memoryKey: "project"
         title: qsTr("Open project")
         nameFilters: [qsTr("Lyric projects (*.json)")]
         onAccepted: root.backend.openProject(selectedFile)
     }
 
-    FileDialog {
+    RememberingFileDialog {
         id: saveDialog
+        memoryKey: "project"
         title: qsTr("Save project")
         fileMode: FileDialog.SaveFile
         defaultSuffix: "lyricproj.json"
@@ -87,8 +89,9 @@ Item {
         onAccepted: root.backend.saveProjectAs(selectedFile)
     }
 
-    FileDialog {
+    RememberingFileDialog {
         id: exportDialog
+        memoryKey: "export"
         title: qsTr("Export video")
         fileMode: FileDialog.SaveFile
         defaultSuffix: "mp4"

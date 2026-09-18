@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs
 import QtQuick.Layouts
 
 GroupBox {
@@ -31,7 +30,7 @@ GroupBox {
             Button {
                 text: qsTr("Add…")
                 flat: true
-                onClicked: fontDialog.open()
+                onClicked: fontDialog.openRemembered()
             }
         }
 
@@ -108,8 +107,9 @@ GroupBox {
         }
     }
 
-    FileDialog {
+    RememberingFileDialog {
         id: fontDialog
+        memoryKey: "font"
         title: qsTr("Add a font")
         nameFilters: [qsTr("Fonts (*.ttf *.otf)")]
         onAccepted: root.backend.addFont(selectedFile)

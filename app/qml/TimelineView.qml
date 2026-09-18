@@ -117,7 +117,12 @@ Rectangle {
                     lines: root.backend.lines
                     boundaryTop: -(y - root.rulerHeight)
                     current: root.cursorTime >= model.start && root.cursorTime < model.end
-                    onSeek: t => root.backend.requestPreview(t)
+                    selected: index === root.backend.selectedLine
+                    onSeek: t => {
+                        root.backend.selectedLine = index
+                        root.backend.requestPreview(t)
+                    }
+                    onGrabbed: root.backend.selectedLine = index
                 }
             }
 
