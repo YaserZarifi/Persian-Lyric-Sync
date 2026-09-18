@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import time
 import tempfile
 import threading
 from dataclasses import asdict
@@ -14,7 +15,11 @@ from PySide6.QtCore import (
 
 from lyricvid.ffmpeg import RenderCancelled, Workdir, probe_duration, render_frame, render_video
 from lyricvid.lyrics import clean_line, parse_lyrics, read_lyrics_file, respread, spread_evenly
-from lyricvid.models import FONTS_DIR, Line, Project
+from lyricvid import fonts
+from lyricvid.ffmpeg import nvenc_available
+from lyricvid.models import (
+    FONTS_DIR, USER_PRESETS_DIR, Line, Project, list_presets, resolve_font, slugify,
+)
 from lyricvid import autotime
 from lyricvid.sync import auto_time, guess_rest
 from lyricvid.timing import apply_drag
@@ -216,6 +221,9 @@ class Backend(QObject):
 
         self._exporting = False
         self._progress = 0.0
+        self._qt_fonts: dict[str, tuple[str, int]] = {}
+        self._nvenc = False
+        threading.Thread(target=self._probe_nvenc, daemon=True).start()
         self._status = ""
         self._cancel = threading.Event()
 
@@ -267,8 +275,124 @@ class Backend(QObject):
 
     def _get_style(self) -> dict:
         style = asdict(self._project.resolved_style())
-        style["em_ratio"] = _em_ratio(style["font_file"])
+        style["em_ratio"] = _em_ratio(str(resolve_font(style["font_file"])))
+        style["qt_family"], style["qt_weight"] = self._qt_font(style["font_file"])
+        style["watermark_url"] = (QUrl.fromLocalFile(style["watermark_image"]).toString()
+                                  if style["watermark_image"] else "")
         return style
+
+    def _qt_font(self, font_file: str) -> tuple[str, int]:
+        """Family/weight Qt uses for the live overlay (registers the file on first use)."""
+        if font_file not in self._qt_fonts:
+            path = resolve_font(font_file)
+            family, weight = "Vazirmatn FD", 900
+            try:
+                from PySide6.QtGui import QFontDatabase
+
+                fid = QFontDatabase.addApplicationFont(str(path))
+                fams = QFontDatabase.applicationFontFamilies(fid) if fid >= 0 else []
+                weight = fonts.font_info(path)[1]
+                family = fams[0] if fams else family
+            except Exception:  # noqa: BLE001 - overlay falls back to the default font
+                pass
+            self._qt_fonts[font_file] = (family, weight)
+        return self._qt_fonts[font_file]
+
+    # ---- presets, fonts, export settings -----------------------------------
+    presetsChanged = Signal()
+    fontsChanged = Signal()
+    exportSettingsChanged = Signal()
+
+    def _get_preset_names(self) -> list:
+        return list_presets()
+
+    presetNames = Property("QVariantList", _get_preset_names, notify=presetsChanged)
+
+    def _get_preset(self) -> str:
+        return self._project.style_preset
+
+    currentPreset = Property(str, _get_preset, notify=styleChanged)
+
+    def _get_style_modified(self) -> bool:
+        return bool(self._project.style)
+
+    styleModified = Property(bool, _get_style_modified, notify=styleChanged)
+
+    def _get_preset_is_user(self) -> bool:
+        return (USER_PRESETS_DIR / f"{self._project.style_preset}.json").exists()
+
+    presetIsUser = Property(bool, _get_preset_is_user, notify=styleChanged)
+
+    @Slot(str)
+    def loadPreset(self, name: str) -> None:
+        self._project.style_preset = name
+        self._project.style = {}
+        self._changed(restyle=True)
+        self._set_status(f"Preset: {name}")
+
+    @Slot(str)
+    def savePresetAs(self, name: str) -> None:
+        name = name.strip()
+        if not name:
+            return
+        style = self._project.resolved_style()
+        style.name = slugify(name)
+        style.save()
+        self._project.style_preset = style.name
+        self._project.style = {}
+        self.presetsChanged.emit()
+        self._changed(restyle=True)
+        self._set_status(f"Saved preset '{style.name}'")
+
+    @Slot()
+    def deletePreset(self) -> None:
+        path = USER_PRESETS_DIR / f"{self._project.style_preset}.json"
+        if not path.exists():
+            return
+        # Keep the look on this project: its values become overrides of the default.
+        overrides = asdict(self._project.resolved_style())
+        path.unlink()
+        self._project.style_preset = "default-bold-outline"
+        self._project.style = {k: v for k, v in overrides.items() if k != "name"}
+        self.presetsChanged.emit()
+        self._changed(restyle=True)
+
+    def _get_fonts(self) -> list:
+        return fonts.list_fonts()
+
+    fontList = Property("QVariantList", _get_fonts, notify=fontsChanged)
+
+    @Slot(QUrl)
+    def addFont(self, url: QUrl) -> None:
+        try:
+            info = fonts.add_font(_local(url))
+        except Exception as e:  # noqa: BLE001
+            self.errorOccurred.emit(f"Could not add font: {e}")
+            return
+        self.fontsChanged.emit()
+        self.setStyleValue("font_file", info["file"])
+
+    @Slot(QUrl)
+    def setWatermarkImage(self, url: QUrl) -> None:
+        self.setStyleValue("watermark_image", "" if url.isEmpty() else _local(url))
+
+    def _get_export(self) -> dict:
+        e = self._project.export
+        return {"resolution": e.resolution, "fps": e.fps, "encoder": e.encoder,
+                "gpu": self._nvenc}
+
+    exportSettings = Property("QVariantMap", _get_export, notify=exportSettingsChanged)
+
+    @Slot(str, "QVariant")
+    def setExportValue(self, key: str, value) -> None:
+        if key not in ("resolution", "fps", "encoder"):
+            return
+        value = int(value) if key == "fps" else str(value)
+        if getattr(self._project.export, key) == value:
+            return
+        setattr(self._project.export, key, value)
+        self.exportSettingsChanged.emit()
+        self._changed()
 
     style = Property("QVariantMap", _get_style, notify=styleChanged)
 
@@ -359,6 +483,10 @@ class Backend(QObject):
 
     canExport = Property(bool, _get_can_export, notify=projectChanged)
 
+    def _probe_nvenc(self) -> None:
+        self._nvenc = nvenc_available()
+        self.exportSettingsChanged.emit()
+
     # ---- helpers ----------------------------------------------------------
     def _set_dirty(self, value: bool) -> None:
         if value != self._dirty:
@@ -421,6 +549,7 @@ class Backend(QObject):
         self.previewChanged.emit()
         self.projectChanged.emit()
         self.styleChanged.emit()
+        self.exportSettingsChanged.emit()
         self._set_dirty(False)
         self._set_status("New project")
 
@@ -438,6 +567,7 @@ class Backend(QObject):
         self._load_duration()
         self.projectChanged.emit()
         self.styleChanged.emit()
+        self.exportSettingsChanged.emit()
         self._set_dirty(False)
         self.autoTimingChanged.emit()
         self._set_status(f"Opened {Path(path).name}")
@@ -581,8 +711,14 @@ class Backend(QObject):
 
     @Slot(str, "QVariant")
     def setStyleValue(self, key: str, value) -> None:
-        if hasattr(value, "name"):  # QColor
+        if hasattr(value, "name") and not isinstance(value, str):  # QColor
             value = value.name()
+        if key == "font_file":  # libass needs the family name inside that file
+            try:
+                self._project.style["font_family"] = fonts.font_info(resolve_font(value))[0]
+            except Exception as e:  # noqa: BLE001
+                self.errorOccurred.emit(f"Could not read font: {e}")
+                return
         if self._project.style.get(key) == value:
             return
         self._project.style[key] = value
@@ -617,10 +753,11 @@ class Backend(QObject):
         self._preview_seq += 1
         out = self._tmp / f"preview_{self._preview_seq % 2}.png"
         t, wd = self._preview_time, self._preview_wd
+        duration = self._duration or None
 
         def work() -> None:
             try:
-                render_frame(project, t, out, workdir=wd)
+                render_frame(project, t, out, workdir=wd, duration=duration)
                 self._previewDone.emit(str(out), "")
             except Exception as e:  # noqa: BLE001
                 self._previewDone.emit("", str(e))
@@ -656,8 +793,9 @@ class Backend(QObject):
 
         def work() -> None:
             try:
-                render_video(project, out, self._exportProgress.emit, self._cancel.is_set)
-                self._exportDone.emit(out, "")
+                started = time.monotonic()
+                enc = render_video(project, out, self._exportProgress.emit, self._cancel.is_set)
+                self._exportDone.emit(out, f"{enc}, {time.monotonic() - started:.0f}s")
             except RenderCancelled:
                 self._exportDone.emit("", "cancelled")
             except Exception as e:  # noqa: BLE001
@@ -679,7 +817,7 @@ class Backend(QObject):
         self._exporting = False
         self.busyChanged.emit()
         if out:
-            self._set_status(f"Exported {out}")
+            self._set_status(f"Exported {out} ({error})")
         elif error == "cancelled":
             self._progress = 0.0
             self.progressChanged.emit()

@@ -36,6 +36,7 @@ Pane {
 
         TabBar {
             id: tabs
+            objectName: "editorTabs"
             Layout.fillWidth: true
             TabButton { text: qsTr("Timing (%1 lines)").arg(linesList.count) }
             TabButton { text: qsTr("Lyrics text") }

@@ -62,7 +62,13 @@ Item {
         text: qsTr("Export MP4…")
         shortcut: "Ctrl+E"
         enabled: root.backend.canExport && !root.backend.exporting
-        onTriggered: exportDialog.open()
+        onTriggered: exportSettingsDialog.open()
+    }
+
+    ExportDialog {
+        id: exportSettingsDialog
+        backend: root.backend
+        onChooseFile: exportDialog.open()
     }
 
     FileDialog {

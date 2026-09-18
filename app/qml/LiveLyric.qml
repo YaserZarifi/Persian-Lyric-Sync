@@ -12,6 +12,11 @@ Item {
     readonly property real t: backend.previewTime
     readonly property var anchorsByAlignment: ({ 2: "bottom", 5: "center", 8: "top" })
     readonly property string vAnchor: anchorsByAlignment[style.alignment] || "center"
+    // Entrance animation progress, mirroring the ASS \t / \move tags.
+    readonly property real entrance: {
+        const dur = Math.max(style.fade_in_ms, 150) / 1000
+        return line.text ? Math.max(0, Math.min(1, (t - line.start) / dur)) : 1
+    }
 
     opacity: {
         if (!line.text)
@@ -30,15 +35,19 @@ Item {
         x: root.style.margin_h * root.k
         width: root.width - 2 * x
         height: mainText.contentHeight
-        y: root.vAnchor === "top" ? root.style.margin_v * root.k
-           : root.vAnchor === "bottom" ? root.height - height - root.style.margin_v * root.k
-           : (root.height - height) / 2
+        y: (root.vAnchor === "top" ? root.style.margin_v * root.k
+            : root.vAnchor === "bottom" ? root.height - height - root.style.margin_v * root.k
+            : (root.height - height) / 2)
+           + (root.style.animation === "slide_up" ? 40 * root.k * (1 - root.entrance) : 0)
+        scale: root.style.animation === "pop" ? 0.86 + 0.14 * Math.pow(root.entrance, 0.6) : 1
 
         LyricText {
             x: root.style.shadow_depth * root.k
             y: root.style.shadow_depth * root.k
             width: block.width
             text: root.line.text
+            family: root.style.qt_family
+            weight: root.style.qt_weight
             pixelSize: mainText.pixelSize
             color: root.style.shadow_color
             opacity: 1 - root.style.shadow_alpha / 255
@@ -54,6 +63,8 @@ Item {
                 y: root.outline * Math.sin(index * Math.PI / 8)
                 width: block.width
                 text: root.line.text
+                family: root.style.qt_family
+                weight: root.style.qt_weight
                 pixelSize: mainText.pixelSize
                 color: root.style.outline_color
             }
@@ -63,6 +74,8 @@ Item {
             id: mainText
             width: block.width
             text: root.line.text
+            family: root.style.qt_family
+            weight: root.style.qt_weight
             pixelSize: root.style.font_size * root.style.em_ratio * root.k
             color: root.style.fill_color
         }

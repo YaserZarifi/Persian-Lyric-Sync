@@ -36,13 +36,16 @@ Pane {
                     asynchronous: true
                 }
 
-                Image {
+                LiveBackground {
                     anchors.fill: parent
                     visible: root.backend.playing
-                    fillMode: Image.PreserveAspectCrop
-                    source: root.backend.backgroundUrl
-                    sourceSize.width: 1920
-                    asynchronous: true
+                    backend: root.backend
+                }
+
+                LiveWatermark {
+                    anchors.fill: parent
+                    visible: root.backend.playing
+                    backend: root.backend
                 }
 
                 LiveLyric {
