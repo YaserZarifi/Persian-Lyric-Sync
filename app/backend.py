@@ -21,7 +21,8 @@ from lyricvid.models import (
     FONTS_DIR, USER_PRESETS_DIR, Line, Project, list_presets, resolve_font, slugify,
 )
 from lyricvid import autotime
-from lyricvid.lrc import fetch_lines
+from lyricvid import publish as pub
+from lyricvid.lrc import fetch_lines, song_identity
 from lyricvid.sync import auto_time, guess_rest
 from lyricvid.timing import apply_drag, close_gaps
 from lyricvid.waveform import compute_peaks
@@ -218,6 +219,10 @@ class Backend(QObject):
     _exportDone = Signal(str, str)
     _peaksDone = Signal(str, object)
     _autoTimeDone = Signal(object, str, bool)
+    _publishDone = Signal(object, str)
+    publishChanged = Signal()
+    publishBusyChanged = Signal()
+    aiSettingsChanged = Signal()
     autoTimingChanged = Signal()
 
     def __init__(self, parent: QObject | None = None) -> None:
@@ -257,6 +262,8 @@ class Backend(QObject):
         self._replace_lines_next = False
         self._selected = -1
         self._autoTimeDone.connect(self._on_auto_time_done)
+        self._publish_busy = False
+        self._publishDone.connect(self._on_publish_done)
         self._previewDone.connect(self._on_preview_done)
         self._exportProgress.connect(self._on_export_progress)
         self._exportDone.connect(self._on_export_done)
@@ -575,6 +582,7 @@ class Backend(QObject):
         self.projectChanged.emit()
         self.styleChanged.emit()
         self.exportSettingsChanged.emit()
+        self.publishChanged.emit()
         self._set_dirty(False)
         self._set_status("New project")
 
@@ -595,6 +603,8 @@ class Backend(QObject):
         self.exportSettingsChanged.emit()
         self._set_dirty(False)
         self.autoTimingChanged.emit()
+        self.publishChanged.emit()
+        self._prefill_publish()
         self._set_status(f"Opened {Path(path).name}")
         self.requestPreview(self._model.midpoint(0))
 
@@ -624,6 +634,7 @@ class Backend(QObject):
     def setAudio(self, url: QUrl) -> None:
         self._project.audio_path = _local(url)
         self._load_duration()
+        self._prefill_publish()
         self._changed()
         self.autoTimingChanged.emit()
         if self._model.lines() and self._duration:
@@ -667,6 +678,136 @@ class Backend(QObject):
     def spreadEvenly(self) -> None:
         self._model.reset(respread(self._model.lines(), self._duration or 180.0))
         self._changed()
+
+    # ---- publish (YouTube metadata) ---------------------------------------
+    def _publish_info(self) -> pub.PublishInfo:
+        return pub.PublishInfo.from_dict(self._project.publish)
+
+    def _get_publish(self) -> dict:
+        d = self._publish_info().to_dict()
+        d["hashtags_text"] = " ".join(d["hashtags"])
+        d["credit"] = pub.credit_block(self._publish_info())
+        return d
+
+    publish = Property("QVariantMap", _get_publish, notify=publishChanged)
+
+    def _get_publish_busy(self) -> bool:
+        return self._publish_busy
+
+    publishBusy = Property(bool, _get_publish_busy, notify=publishBusyChanged)
+
+    @Slot(str, "QVariant")
+    def setPublishValue(self, key: str, value) -> None:
+        info = self._publish_info()
+        if key == "hashtags":
+            value = pub.clean_hashtags(str(value))
+        if not hasattr(info, key) or getattr(info, key) == value:
+            return
+        setattr(info, key, value)
+        self._project.publish = info.to_dict()
+        self._set_dirty(True)
+        self.publishChanged.emit()
+
+    def _prefill_publish(self) -> None:
+        """Seed artist/title from the audio's tags or 'Artist - Title' file name."""
+        info = self._publish_info()
+        if info.artist_en or info.title_en or not self._project.audio_path:
+            return
+        try:
+            info.artist_en, info.title_en = song_identity(self._project.audio_path)
+        except Exception:  # noqa: BLE001 - optional convenience
+            return
+        self._project.publish = info.to_dict()
+        self.publishChanged.emit()
+
+    @Slot()
+    def fillPublishTemplate(self) -> None:
+        info = pub.fill_template(self._publish_info())
+        self._project.publish = info.to_dict()
+        self._set_dirty(True)
+        self.publishChanged.emit()
+        self._set_status("Publish text filled from the template (no AI)")
+
+    @Slot()
+    def generatePublish(self) -> None:
+        url, token = self._ai_settings()
+        if not url or not token:
+            self.errorOccurred.emit("Set the AI Worker URL and app token first (Publish tab → AI settings).")
+            return
+        if self._publish_busy:
+            return
+        info = self._publish_info()
+        lyrics = [l.text for l in self._model.lines()]
+        self._publish_busy = True
+        self.publishBusyChanged.emit()
+        self._set_status("Writing title and description with AI…")
+
+        def work() -> None:
+            try:
+                self._publishDone.emit(pub.generate_ai(info, lyrics, url, token), "")
+            except Exception as e:  # noqa: BLE001
+                self._publishDone.emit(None, str(e))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    @Slot(object, str)
+    def _on_publish_done(self, info, error: str) -> None:
+        self._publish_busy = False
+        self.publishBusyChanged.emit()
+        if info is None:
+            self._set_status("AI generation failed")
+            self.errorOccurred.emit(f"AI generation failed: {error}\n\nYou can still use 'Fill from template'.")
+            return
+        self._project.publish = info.to_dict()
+        self._set_dirty(True)
+        self.publishChanged.emit()
+        self._set_status(f"Publish text written by {info.generated_by}")
+
+    @Slot(str)
+    def copyText(self, text: str) -> None:
+        from PySide6.QtGui import QGuiApplication
+
+        QGuiApplication.clipboard().setText(text)
+        self._set_status("Copied to clipboard")
+
+    # AI Worker settings live in the user's Qt settings, not in project files.
+    def _ai_settings(self) -> tuple[str, str]:
+        from PySide6.QtCore import QSettings
+
+        s = QSettings()
+        return str(s.value("ai/worker_url", "") or ""), str(s.value("ai/app_token", "") or "")
+
+    def _get_ai(self) -> dict:
+        url, token = self._ai_settings()
+        return {"url": url, "hasToken": bool(token)}
+
+    aiSettings = Property("QVariantMap", _get_ai, notify=aiSettingsChanged)
+
+    @Slot(str, str)
+    def setAiSettings(self, url: str, token: str) -> None:
+        from PySide6.QtCore import QSettings
+
+        s = QSettings()
+        s.setValue("ai/worker_url", url.strip())
+        if token.strip():  # empty field = keep the stored token
+            s.setValue("ai/app_token", token.strip())
+        self.aiSettingsChanged.emit()
+
+    @Slot(result=str)
+    def testAiConnection(self) -> str:
+        url, token = self._ai_settings()
+        if not url:
+            return "No Worker URL set."
+        try:
+            import json
+            import urllib.request
+
+            with urllib.request.urlopen(url.rstrip("/") + "/", timeout=15) as r:
+                data = json.loads(r.read().decode("utf-8"))
+            providers = ", ".join(data.get("providers", [])) or "none"
+            return f"Worker reachable. Active providers: {providers}."
+        except Exception as e:  # noqa: BLE001
+            return f"Could not reach the Worker: {e}"
 
     # ---- automatic timing -------------------------------------------------
     def _run_timing_job(self, status: str, job) -> None:

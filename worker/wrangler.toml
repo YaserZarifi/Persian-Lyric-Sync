@@ -1,0 +1,20 @@
+name = "persian-lyric-sync-ai"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# Workers AI binding (free daily allowance on every Cloudflare account)
+[ai]
+binding = "AI"
+
+[vars]
+# Try order. Claude/Gemini are skipped until their secrets are set.
+PROVIDER_ORDER = "workers-ai,claude,gemini"
+# Workers AI models, tried in order.
+WORKERS_AI_MODELS = "@cf/openai/gpt-oss-120b,@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+# CLAUDE_MODEL = "claude-opus-5"
+# GEMINI_MODEL = "gemini-2.5-flash"
+
+# Secrets (never in this file):
+#   npx wrangler secret put APP_TOKEN          # required: shared with the desktop app
+#   npx wrangler secret put ANTHROPIC_API_KEY  # optional
+#   npx wrangler secret put GEMINI_API_KEY     # optional

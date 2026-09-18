@@ -139,6 +139,8 @@ class Project:
     lines: list[Line] = field(default_factory=list)
     # Per-project style overrides on top of the named preset (set by the GUI).
     style: dict = field(default_factory=dict)
+    # YouTube metadata, credits and rights note (lyricvid.publish.PublishInfo).
+    publish: dict = field(default_factory=dict)
     version: int = PROJECT_VERSION
 
     def resolved_style(self) -> StylePreset:
@@ -160,6 +162,8 @@ class Project:
         }
         if self.style:
             d["style"] = self.style
+        if self.publish:
+            d["publish"] = self.publish
         return d
 
     @classmethod
@@ -173,6 +177,7 @@ class Project:
                                      if k in {f.name for f in fields(ExportSettings)}}),
             lines=[Line(**l) for l in d.get("lines", [])],
             style=d.get("style", {}),
+            publish=d.get("publish", {}),
         )
 
     def save(self, path: str | Path) -> None:

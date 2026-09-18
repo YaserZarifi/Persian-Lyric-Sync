@@ -47,6 +47,7 @@ Pane {
             TabButton { text: qsTr("Timing (%1 lines)").arg(linesList.count) }
             TabButton { text: qsTr("Lyrics text") }
             TabButton { text: qsTr("Style") }
+            TabButton { text: qsTr("Publish") }
         }
 
         StackLayout {
@@ -62,6 +63,9 @@ Pane {
                 backend: root.backend
             }
             StylePanel {
+                backend: root.backend
+            }
+            PublishPanel {
                 backend: root.backend
             }
         }

@@ -15,6 +15,10 @@ Windows desktop app that turns an MP3, Persian lyrics and a background image int
 - **Lyric-video look**: Ken Burns pan/zoom, background darken/blur, entrance animations
   (fade, pop, slide up), any TTF/OTF font, logo and channel-name watermark, all saved as
   reusable named presets.
+- **Publish step**: bilingual YouTube title, description and hashtags written by AI through
+  your own Cloudflare Worker (Workers AI free tier first, Claude/Gemini optional; see
+  [worker/README.md](worker/README.md)), plus artist credits and a rights note you control.
+  A template fills everything without AI too.
 - **Fast export**: NVIDIA NVENC when available (CPU x264 otherwise), 1080p/1440p/4K,
   30/60 fps. A 3:21 song exports in about 30 s (about 60 s with Ken Burns) on a laptop.
 
