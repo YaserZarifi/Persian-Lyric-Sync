@@ -14,5 +14,14 @@
   "margin_v": 60,
   "fade_in_ms": 200,
   "fade_out_ms": 200,
-  "ken_burns": false
+  "animation": "fade",
+  "ken_burns": "zoom_in",
+  "ken_burns_amount": 0.1,
+  "bg_dim": 0.2,
+  "bg_blur": 0.0,
+  "watermark_image": "",
+  "watermark_text": "",
+  "watermark_position": "top_right",
+  "watermark_scale": 0.12,
+  "watermark_opacity": 0.85
 }

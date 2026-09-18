@@ -2,13 +2,24 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "assets"
 FONTS_DIR = ASSETS / "fonts"
-PRESETS_DIR = ASSETS / "presets"
+PRESETS_DIR = ASSETS / "presets"  # built-in, read-only
+
+# Per-user data, kept out of the repo: saved presets and added fonts.
+USER_DIR = Path(os.environ.get("APPDATA", Path.home())) / "PersianLyricSync"
+USER_PRESETS_DIR = USER_DIR / "presets"
+USER_FONTS_DIR = USER_DIR / "fonts"
+
+KEN_BURNS_MODES = ("off", "zoom_in", "zoom_out", "pan_left", "pan_right")
+ANIMATIONS = ("fade", "pop", "slide_up")
+WATERMARK_POSITIONS = ("top_left", "top_right", "bottom_left", "bottom_right")
 
 PROJECT_VERSION = 1
 
@@ -24,6 +35,7 @@ class Line:
 class ExportSettings:
     resolution: str = "1920x1080"
     fps: int = 30
+    encoder: str = "auto"  # auto (GPU if available) | gpu | cpu
 
     @property
     def size(self) -> tuple[int, int]:
@@ -48,25 +60,72 @@ class StylePreset:
     margin_v: int = 60
     fade_in_ms: int = 200
     fade_out_ms: int = 200
-    ken_burns: bool = False
+    animation: str = "fade"  # one of ANIMATIONS
+    # Background
+    ken_burns: str = "zoom_in"  # one of KEN_BURNS_MODES
+    ken_burns_amount: float = 0.10  # extra zoom over the whole song
+    bg_dim: float = 0.20  # 0 = untouched, 1 = black
+    bg_blur: float = 0.0  # gaussian sigma at 1080p
+    # Channel branding
+    watermark_image: str = ""
+    watermark_text: str = ""
+    watermark_position: str = "top_right"
+    watermark_scale: float = 0.12  # logo width as a fraction of the video width
+    watermark_opacity: float = 0.85
 
     @classmethod
     def from_dict(cls, d: dict) -> "StylePreset":
         known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in d.items() if k in known})
+        d = {k: v for k, v in d.items() if k in known}
+        if isinstance(d.get("ken_burns"), bool):  # v1 presets stored a bool
+            d["ken_burns"] = "zoom_in" if d["ken_burns"] else "off"
+        return cls(**d)
 
     @classmethod
     def load(cls, name_or_path: str) -> "StylePreset":
-        p = Path(name_or_path)
-        if not p.suffix:
-            p = PRESETS_DIR / f"{name_or_path}.json"
-        return cls.from_dict(json.loads(p.read_text(encoding="utf-8")))
+        return cls.from_dict(json.loads(preset_path(name_or_path).read_text(encoding="utf-8")))
 
     def save(self, path: Path | None = None) -> Path:
-        path = path or PRESETS_DIR / f"{self.name}.json"
+        path = path or USER_PRESETS_DIR / f"{slugify(self.name)}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(asdict(self), indent=2, ensure_ascii=False), encoding="utf-8")
         return path
+
+
+def slugify(name: str) -> str:
+    slug = re.sub(r"[^\w\-]+", "-", name.strip(), flags=re.UNICODE).strip("-").lower()
+    return slug or "preset"
+
+
+def preset_path(name_or_path: str) -> Path:
+    """User presets shadow built-in ones of the same name."""
+    p = Path(name_or_path)
+    if p.suffix:
+        return p
+    for d in (USER_PRESETS_DIR, PRESETS_DIR):
+        cand = d / f"{name_or_path}.json"
+        if cand.exists():
+            return cand
+    raise FileNotFoundError(name_or_path)
+
+
+def list_presets() -> list[str]:
+    names = {p.stem for d in (PRESETS_DIR, USER_PRESETS_DIR) if d.exists() for p in d.glob("*.json")}
+    return sorted(names, key=lambda n: (n != "default-bold-outline", n))
+
+
+def font_dirs() -> list[Path]:
+    return [FONTS_DIR, USER_FONTS_DIR]
+
+
+def resolve_font(font_file: str) -> Path:
+    p = Path(font_file)
+    if p.is_absolute():
+        return p
+    for d in font_dirs():
+        if (d / p).exists():
+            return d / p
+    return FONTS_DIR / p
 
 
 @dataclass
@@ -108,7 +167,8 @@ class Project:
             audio_path=d.get("audio_path", ""),
             background_path=d.get("background_path", ""),
             style_preset=d.get("style_preset", "default-bold-outline"),
-            export=ExportSettings(**d.get("export", {})),
+            export=ExportSettings(**{k: v for k, v in d.get("export", {}).items()
+                                     if k in {f.name for f in fields(ExportSettings)}}),
             lines=[Line(**l) for l in d.get("lines", [])],
             style=d.get("style", {}),
         )

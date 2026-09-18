@@ -26,3 +26,10 @@ def test_linked_start_edge_drags_previous_end():
 def test_unlinked_end_edge_stops_at_gap():
     assert apply_drag(SNAP, 1, "end", 5.0, 60) == [SNAP[0], (5.0, 9.0), SNAP[2]]
     assert apply_drag(SNAP, 1, "end", -10, 60)[1] == (5.0, 5.0 + MIN_LEN)
+
+
+def test_v1_presets_still_load():
+    from lyricvid.models import StylePreset
+
+    assert StylePreset.from_dict({"ken_burns": False}).ken_burns == "off"
+    assert StylePreset.from_dict({"ken_burns": True, "unknown": 1}).ken_burns == "zoom_in"
