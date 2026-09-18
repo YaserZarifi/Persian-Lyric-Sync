@@ -1,0 +1,18 @@
+{
+  "name": "default-bold-outline",
+  "font_file": "Vazirmatn-FD-Black.ttf",
+  "font_family": "Vazirmatn FD Black",
+  "font_size": 96,
+  "fill_color": "#FFFFFF",
+  "outline_color": "#000000",
+  "outline_width": 8.0,
+  "shadow_color": "#000000",
+  "shadow_depth": 3.0,
+  "shadow_alpha": 128,
+  "alignment": 5,
+  "margin_h": 120,
+  "margin_v": 60,
+  "fade_in_ms": 200,
+  "fade_out_ms": 200,
+  "ken_burns": false
+}

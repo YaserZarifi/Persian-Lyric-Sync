@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+
+# user media and renders
+input/
+bg/
+output/
+*.mp4
+*.mp3

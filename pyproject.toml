@@ -1,0 +1,19 @@
+[project]
+name = "persian-lyric-video"
+version = "0.1.0"
+description = "Turn an MP3, Persian lyrics and a background image into a synced lyric video"
+authors = [
+    { name = "YaserZarifi", email = "yaserzarifi1378@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fonttools>=4.65.0",
+    "numpy>=2.4.6",
+    "pyside6>=6.11.2",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

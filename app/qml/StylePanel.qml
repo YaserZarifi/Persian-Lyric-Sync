@@ -1,0 +1,86 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+GroupBox {
+    id: root
+
+    required property QtObject backend
+    readonly property var style: backend.style
+
+    title: qsTr("Style")
+
+    GridLayout {
+        anchors.fill: parent
+        columns: 4
+        columnSpacing: 16
+
+        Label { text: qsTr("Font size") }
+        SpinBox {
+            from: 24; to: 220; stepSize: 4
+            value: root.style.font_size
+            editable: true
+            onValueModified: root.backend.setStyleValue("font_size", value)
+        }
+
+        Label { text: qsTr("Position") }
+        ComboBox {
+            readonly property var alignments: [5, 2, 8]
+            model: [qsTr("Middle"), qsTr("Bottom"), qsTr("Top")]
+            currentIndex: Math.max(0, alignments.indexOf(root.style.alignment))
+            onActivated: index => root.backend.setStyleValue("alignment", alignments[index])
+        }
+
+        Label { text: qsTr("Outline") }
+        SpinBox {
+            from: 0; to: 24
+            value: root.style.outline_width
+            editable: true
+            onValueModified: root.backend.setStyleValue("outline_width", value)
+        }
+
+        Label { text: qsTr("Shadow") }
+        SpinBox {
+            from: 0; to: 16
+            value: root.style.shadow_depth
+            editable: true
+            onValueModified: root.backend.setStyleValue("shadow_depth", value)
+        }
+
+        Label { text: qsTr("Text color") }
+        ColorPicker {
+            color: root.style.fill_color
+            onPicked: c => root.backend.setStyleValue("fill_color", c)
+        }
+
+        Label { text: qsTr("Outline color") }
+        ColorPicker {
+            color: root.style.outline_color
+            onPicked: c => root.backend.setStyleValue("outline_color", c)
+        }
+
+        Label { text: qsTr("Fade in (ms)") }
+        SpinBox {
+            from: 0; to: 2000; stepSize: 50
+            value: root.style.fade_in_ms
+            editable: true
+            onValueModified: root.backend.setStyleValue("fade_in_ms", value)
+        }
+
+        Label { text: qsTr("Fade out (ms)") }
+        SpinBox {
+            from: 0; to: 2000; stepSize: 50
+            value: root.style.fade_out_ms
+            editable: true
+            onValueModified: root.backend.setStyleValue("fade_out_ms", value)
+        }
+
+        Button {
+            Layout.columnSpan: 4
+            Layout.alignment: Qt.AlignRight
+            text: qsTr("Reset to preset")
+            flat: true
+            onClicked: root.backend.resetStyle()
+        }
+    }
+}
